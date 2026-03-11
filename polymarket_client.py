@@ -333,16 +333,31 @@ def print_market_report(rows: List[Dict[str, Any]]) -> None:
             f"enableOrderBook={row.get('enableOrderBook')}"
         )
 
-        # 显示概率：优先使用 outcomePrices（最准确）
+        # 显示概率：优先使用 lastTradePrice（最后成交价，更准确），备用 outcomePrices
+        # lastTradePrice 来自订单簿数据，能反映真实成交价格
         prices = row.get("outcomePrices") or []
-        if prices and len(prices) >= 2:
+        
+        # 优先使用 lastTradePrice
+        yes_last = None
+        no_last = None
+        if row.get("yesBookSummary") and row["yesBookSummary"].get("last_trade_price"):
+            yes_last = row["yesBookSummary"]["last_trade_price"]
+        if row.get("noBookSummary") and row["noBookSummary"].get("last_trade_price"):
+            no_last = row["noBookSummary"]["last_trade_price"]
+        
+        if yes_last is not None and no_last is not None:
+            yes_pct = round(float(yes_last) * 100, 1)
+            no_pct = round(float(no_last) * 100, 1)
+            print(f" ✅ YES: {yes_pct}% | NO: {no_pct}% (lastTradePrice)")
+        elif prices and len(prices) >= 2:
+            # 备用 outcomePrices
             try:
                 yes_pct = round(float(prices[0]) * 100, 1)
                 no_pct = round(float(prices[1]) * 100, 1)
                 # 验证是否接近100%（允许±1%误差）
                 total = yes_pct + no_pct
                 if total > 99 and total < 101:
-                    print(f" ✅ YES: {yes_pct}% | NO: {no_pct}%")
+                    print(f" ✅ YES: {yes_pct}% | NO: {no_pct}% (outcomePrices)")
                 else:
                     print(f" ⚠️ YES: {yes_pct}% | NO: {no_pct}% (sum={total}%)")
             except Exception:
